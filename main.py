@@ -13,6 +13,7 @@ import winreg
 import base64
 from Crypto.Cipher import AES
 
+
 # 确保能找到同目录下的模块
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -185,8 +186,8 @@ def handle_adapter_operations():
     """处理网络适配器管理流程"""
     from network_utils import (
         get_network_adapters,
-        sort_adapters,
         select_adapter_interactive,
+        detect_campus_adapter,
         change_dns,
         disable_ipv6,
         reset_adapter
@@ -198,10 +199,8 @@ def handle_adapter_operations():
         print("\n未找到可用的网络适配器")
         return
     
-    sorted_adapters = sort_adapters(adapters)
-    
     # 交互式选择适配器
-    selected = select_adapter_interactive(sorted_adapters)
+    selected = select_adapter_interactive(adapters)
     if not selected:
         return
     
@@ -362,9 +361,9 @@ def main():
 
 
 if __name__ == "__main__":
-    if platform.system() == "Windows" and not check_admin():
-        ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, __file__, None, 1)
-        sys.exit()
+    # if platform.system() == "Windows" and not check_admin():
+    #     ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, __file__, None, 1)
+    #     sys.exit()
         
     if not os.path.exists("logs"):
         try:

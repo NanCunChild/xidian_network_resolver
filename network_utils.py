@@ -5,7 +5,7 @@ import logging
 import platform
 import webbrowser
 import winreg
-from typing import List, Dict
+from typing import List, Dict, Tuple, Optional
 import socket
 import re
 
@@ -18,6 +18,7 @@ CAMPUS_NETWORK_FEATURES = {
     "gateway_ips": ["202.117.0.1"],
     "typical_ips": ["10.", "202.117."],
 }
+SYSTEM_ENCODING = 'utf-8'
 
 # --- 代理相关 ---
 
@@ -196,98 +197,204 @@ def check_internet_connectivity(test_url="http://detectportal.firefox.com/succes
         return "error", f"检查连接时出错: {e}"
 
 def get_network_adapters() -> List[Dict]:
-    """获取系统网络适配器列表 (Windows实现)"""
-    if platform.system() != "Windows":
-        return []
-
+    """安全获取网络适配器列表（兼容中文环境）"""
+    cmd = ["netsh", "interface", "show", "interface"]
+    
     try:
         result = subprocess.run(
-            ["netsh", "interface", "show", "interface"],
+            cmd,
             capture_output=True,
             text=True,
-            encoding='utf-8',
-            errors='ignore',
-            timeout=5
+            encoding=SYSTEM_ENCODING,
+            errors='replace',  # 替换无法解码的字符
+            timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW
         )
-        adapters = []
-        current_adapter = {}
         
-        # 解析 netsh 输出
-        for line in result.stdout.split('\n'):
-            if "---" in line:
-                continue
-            if match := re.match(r"^\s*(\S+)\s+(\S.+?)\s+(\S+)\s+(\S+)\s+(\S+)\s*$", line):
-                current_adapter = {
-                    "name": match.group(2).strip(),
-                    "state": "Connected" if "Connected" in match.group(3) else "Disconnected",
-                    "type": match.group(4),
-                    "physical": "Dedicated" if "Dedicated" in match.group(5) else "Other"
-                }
-                adapters.append(current_adapter)
-        return adapters
+        # 解析输出
+        return parse_netsh_output(result.stdout)
+        
     except Exception as e:
-        logger.error(f"获取网络适配器失败: {str(e)}")
+        logger.error(f"获取适配器失败: {safe_str(e)}")
         return []
 
+def parse_netsh_output(output: str) -> List[Dict]:
+    """解析netsh命令输出"""
+    adapters = []
+    in_table = False
+    headers = []
+    
+    for line in output.split('\n'):
+        line = line.strip()
+        
+        # 检测表格开始
+        if not in_table and re.match(r"^-+$", line):
+            in_table = True
+            continue
+            
+        if in_table:
+            # 解析表头
+            if not headers:
+                headers = re.split(r"\s{2,}", line)
+                continue
+                
+            # 跳过分隔线
+            if re.match(r"^-+$", line):
+                continue
+                
+            # 解析数据行
+            if match := re.match(r"^(\S+.*?)\s{2,}(\S+.*?)\s{2,}(\S+.*?)\s{2,}(.+)$", line):
+                adapter = {
+                    'admin_state': match.group(1).strip(),
+                    'state': convert_state(match.group(2)),
+                    'type': match.group(3).strip(),
+                    'name': match.group(4).strip()
+                }
+                adapters.append(adapter)
+                
+    return adapters
+
+def convert_state(state: str) -> str:
+    """统一状态标识"""
+    state_map = {
+        '已连接': 'Connected',
+        'Connected': 'Connected',
+        '已断开连接': 'Disconnected',
+        'Disconnected': 'Disconnected'
+    }
+    return state_map.get(state, 'Unknown')
 
 def detect_campus_adapter(adapter_name: str) -> bool:
-    """检测是否为校园网适配器"""
+    """安全检测校园网适配器"""
     try:
-        # 方法1: 检测DNS后缀
-        output = subprocess.check_output(
+        result = subprocess.run(
             ["netsh", "interface", "ipv4", "show", "config", f"name={adapter_name}"],
-            text=True, timeout=5
+            capture_output=True,
+            text=True,
+            encoding=SYSTEM_ENCODING,
+            errors='replace',
+            timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW
         )
-        if CAMPUS_NETWORK_FEATURES["dns_suffix"] in output:
-            return True
-        
-        # 方法2: 检测特定域名解析
-        try:
-            socket.gethostbyname(CAMPUS_NETWORK_FEATURES["test_domain"])
-            return True
-        except socket.gaierror:
-            pass
-        
-        # 方法3: 检查IP地址段
-        ip_output = subprocess.check_output(["ipconfig"], text=True)
-        ip_pattern = re.compile(r"IPv4 Address.*?(\d+\.\d+\.\d+\.\d+)")
-        for ip in ip_pattern.findall(ip_output):
-            if any(ip.startswith(prefix) for prefix in CAMPUS_NETWORK_FEATURES["typical_ips"]):
-                return True
-    except Exception:
-        pass
-    return False
-
-def detect_campus_adapter(adapter_info: dict) -> bool:
-    """增强型校园网适配器检测"""
-    try:
-        # 方法1: 检查IP地址段
-        ip_output = subprocess.check_output(
-            ["netsh", "interface", "ipv4", "show", "address", f"name={adapter_info['name']}"],
-            text=True, timeout=5, errors='ignore'
-        )
-        if re.search(r"IP Address:\s+10\.\d+\.\d+\.\d+", ip_output):
-            return True
-        
-        # 方法2: 测试内网域名解析
-        try:
-            socket.gethostbyname(CAMPUS_NETWORK_FEATURES["test_domain"])
-            return True
-        except socket.gaierror:
-            pass
-        
-        # 方法3: 追踪路由检测
-        trace_result = subprocess.run(
-            ["tracert", "-d", "-w", "2", CAMPUS_NETWORK_FEATURES["test_domain"]],
-            capture_output=True, text=True, timeout=10
-        )
-        if any(ip.startswith("202.117") for ip in re.findall(r"\d+\.\d+\.\d+\.\d+", trace_result.stdout)):
-            return True
-        
+        return "xidian.edu.cn" in result.stdout
     except Exception as e:
-        logger.warning(f"校园网检测异常: {str(e)}")
+        logger.error(f"检测适配器失败: {safe_str(e)}")
+        return False
+
+def reset_adapter(adapter_name: str) -> Tuple[bool, str]:
+    """安全重启适配器"""
+    try:
+        # 禁用适配器
+        subprocess.run(
+            ["netsh", "interface", "set", "interface", 
+             f'name="{adapter_name}"', "admin=disable"],
+            check=True,
+            timeout=10,
+            encoding=SYSTEM_ENCODING,
+            errors='replace',
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        
+        # 启用适配器
+        subprocess.run(
+            ["netsh", "interface", "set", "interface", 
+             f'name="{adapter_name}"', "admin=enable"],
+            check=True,
+            timeout=10,
+            encoding=SYSTEM_ENCODING,
+            errors='replace',
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        return True, "适配器重启成功"
+    except subprocess.CalledProcessError as e:
+        error_msg = safe_str(e.stderr)
+        logger.error(f"重置失败: {error_msg}")
+        return False, f"操作失败: {error_msg}"
+    except Exception as e:
+        error_msg = safe_str(e)
+        logger.error(f"意外错误: {error_msg}")
+        return False, f"发生意外错误: {error_msg}"
+
+def safe_str(obj) -> str:
+    """安全转换为字符串"""
+    try:
+        return str(obj)
+    except UnicodeEncodeError:
+        return obj.encode(SYSTEM_ENCODING, errors='replace').decode(SYSTEM_ENCODING)
+    except:
+        return "无法解码的错误信息"
     
-    return False
+def select_adapter_interactive(adapters: List[Dict], max_retry: int = 3) -> Optional[Dict]:
+    """
+    交互式网络适配器选择函数
+    
+    参数：
+    adapters - 网络适配器列表
+    max_retry - 最大重试次数
+    
+    返回：
+    选中的适配器字典或None
+    """
+    def display_adapters(adapter_list: List[Dict]) -> None:
+        """格式化显示适配器列表"""
+        print("\n{:-^60}".format(" 可用网络适配器 "))
+        print("{:<5}{:<30}{:<15}{:<10}".format("序号", "适配器名称", "连接状态", "类型"))
+        print("-" * 60)
+        for idx, adapter in enumerate(adapter_list, 1):
+            # 自动检测校园网适配器
+            is_campus = detect_campus_adapter(adapter['name'])
+            campus_mark = " (校园网)" if is_campus else ""
+            
+            status_map = {
+                "Connected": "已连接",
+                "Disconnected": "未连接"
+            }
+            
+            print("{:<5}{:<30}{:<15}{:<10}{}".format(
+                idx,
+                adapter['name'][:27] + (adapter['name'][27:] and '..'),
+                status_map.get(adapter['state'], "未知状态"),
+                adapter['type'][:8] + (adapter['type'][8:] and '..'),
+                campus_mark
+            ))
+        print("-" * 60)
+        print("输入 0 返回上级菜单")
+    
+    # 最大重试机制
+    for attempt in range(max_retry):
+        try:
+            display_adapters(adapters)
+            
+            # 获取用户输入
+            selection = input("请选择适配器序号 (1-{}): ".format(len(adapters)))
+            
+            # 处理退出选项
+            if selection.strip() == '0':
+                return None
+                
+            # 输入验证
+            if not selection.isdigit():
+                raise ValueError("请输入有效数字")
+                
+            index = int(selection)
+            if not (1 <= index <= len(adapters)):
+                raise IndexError("序号超出范围")
+                
+            # 返回选中适配器
+            selected = adapters[index-1]
+            print("已选择适配器：{}".format(selected['name']))
+            return selected
+            
+        except (ValueError, IndexError) as e:
+            print("输入错误：{}".format(str(e)))
+            remaining = max_retry - attempt - 1
+            if remaining > 0:
+                print("您还有 {} 次重试机会".format(remaining))
+            else:
+                print("超过最大重试次数")
+                return None
+                
+    return None
 
 # 新增适配器重置功能
 def reset_adapter(adapter_name: str) -> tuple:
@@ -343,36 +450,13 @@ def change_dns(adapter_name: str, dns_servers: list) -> tuple:
     except Exception as e:
         return False, f"意外错误: {str(e)}"
 
-def change_dns(adapter_name: str, dns_servers: list):
-    """修改DNS服务器设置 (需要管理员权限)"""
-    try:
-        # 清除现有DNS
-        subprocess.run(
-            ["netsh", "interface", "ipv4", "set", "dns", 
-             f"name={adapter_name}", "source=static", "addr=none"],
-            check=True, timeout=10
-        )
-        # 设置新DNS
-        for i, dns in enumerate(dns_servers, 1):
-            subprocess.run(
-                ["netsh", "interface", "ipv4", "add", "dns",
-                 f"name={adapter_name}", dns, f"index={i}"],
-                check=True, timeout=10
-            )
-        return True, "DNS修改成功"
-    except subprocess.CalledProcessError as e:
-        logger.error(f"DNS修改失败: {e.stderr}")
-        return False, f"操作失败: {e.stderr}"
-    except Exception as e:
-        return False, f"意外错误: {str(e)}"
-
 def disable_ipv6(adapter_name: str):
     """禁用IPv6协议 (需要管理员权限)"""
     try:
         subprocess.run(
             ["netsh", "interface", "ipv6", "set", "interface",
-             f'"{adapter_name}"', "admin=disable"],
-            check=True, shell=True, timeout=10
+             f'"{adapter_name}"', "disableddns=enabled", "store=persistent"], # 使用 disableddns 而不是 disable，更安全
+            check=True, shell=True, capture_output=True, text=True, timeout=10
         )
         return True, "IPv6已禁用"
     except subprocess.CalledProcessError as e:
@@ -380,6 +464,7 @@ def disable_ipv6(adapter_name: str):
         return False, f"操作失败: {e.stderr}"
     except Exception as e:
         return False, f"意外错误: {str(e)}"
+
 
 def enable_ipv6(adapter_name):
     """启用指定网络适配器的 IPv6 (Windows, 需要管理员权限) - 占位符"""

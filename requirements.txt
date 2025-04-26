@@ -1,9 +1,4 @@
-requests
-beautifulsoup4
-pycryptodome
-Pillow
-ddddocr
-psutil
-pywin32
-urllib3
-six
+core==1.0.1
+pycryptodome==3.20.0
+pywin32==308
+Requests==2.32.3
