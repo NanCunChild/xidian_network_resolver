@@ -1,0 +1,9 @@
+requests
+beautifulsoup4
+pycryptodome
+Pillow
+ddddocr
+psutil
+pywin32
+urllib3
+six

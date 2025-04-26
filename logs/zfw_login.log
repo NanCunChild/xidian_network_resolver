@@ -1,0 +1,159 @@
+2025-04-24 23:52:43,205 - INFO - main - 程序启动。
+2025-04-24 23:52:54,875 - INFO - zfw_apis - 尝试登录用户 22009100795 - 第 1 次
+2025-04-24 23:52:55,199 - ERROR - zfw_apis - 获取验证码图片时发生错误: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-24 23:52:55,200 - ERROR - zfw_apis - 登录过程发生内部错误 (22009100795): 'builtin_function_or_method' object has no attribute 'time'
+Traceback (most recent call last):
+  File "d:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 209, in attempt_login
+    captcha_image_data = self.get_captcha_image(session)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 159, in get_captcha_image
+    captcha_url = f'{self.base_url}site/captcha?refresh=1&_={int(sleep.time() * 1000)}'
+                                                                 ^^^^^^^^^^
+AttributeError: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-24 23:52:55,202 - ERROR - zfw_apis - 用户 22009100795 登录失败，最终原因: 登录内部错误: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:24:17,697 - INFO - main - 程序启动。
+2025-04-25 00:24:39,856 - INFO - zfw_apis - 尝试登录用户 22009100795 - 第 1 次
+2025-04-25 00:24:40,170 - ERROR - zfw_apis - 获取验证码图片时发生错误: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:24:40,171 - ERROR - zfw_apis - 登录过程发生内部错误 (22009100795): 'builtin_function_or_method' object has no attribute 'time'
+Traceback (most recent call last):
+  File "D:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 209, in attempt_login
+    captcha_image_data = self.get_captcha_image(session)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 159, in get_captcha_image
+    captcha_url = f'{self.base_url}site/captcha?refresh=1&_={int(sleep.time() * 1000)}'
+                                                                 ^^^^^^^^^^
+AttributeError: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:24:40,172 - ERROR - zfw_apis - 用户 22009100795 登录失败，最终原因: 登录内部错误: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:24:50,561 - INFO - network_utils - 尝试在浏览器中打开 URL: http://192.168.x.x
+2025-04-25 00:24:50,655 - INFO - network_utils - 成功调用 webbrowser.open()
+2025-04-25 00:26:29,208 - INFO - zfw_apis - 尝试登录用户 22009100795 - 第 1 次
+2025-04-25 00:26:29,496 - ERROR - zfw_apis - 获取验证码图片时发生错误: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:26:29,496 - ERROR - zfw_apis - 登录过程发生内部错误 (22009100795): 'builtin_function_or_method' object has no attribute 'time'
+Traceback (most recent call last):
+  File "D:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 209, in attempt_login
+    captcha_image_data = self.get_captcha_image(session)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 159, in get_captcha_image
+    captcha_url = f'{self.base_url}site/captcha?refresh=1&_={int(sleep.time() * 1000)}'
+                                                                 ^^^^^^^^^^
+AttributeError: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:26:29,497 - ERROR - zfw_apis - 用户 22009100795 登录失败，最终原因: 登录内部错误: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:27:58,684 - INFO - zfw_apis - 尝试登录用户 22009100795 - 第 1 次
+2025-04-25 00:31:02,081 - INFO - main - 程序启动。
+2025-04-25 00:31:12,459 - INFO - zfw_apis - 尝试登录用户 22009100795 - 第 1 次
+2025-04-25 00:31:31,409 - INFO - zfw_apis - 验证码识别尝试结果: ['15', '15', '15', '15', '15'], 最终选择: 15
+2025-04-25 00:31:36,049 - ERROR - zfw_apis - 密码加密失败: Incorrect padding
+2025-04-25 00:31:40,787 - ERROR - zfw_apis - 登录过程发生内部错误 (22009100795): Incorrect padding
+Traceback (most recent call last):
+  File "D:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 215, in attempt_login
+    encrypted_password = self.encrypt_password(password, public_key)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 87, in encrypt_password
+    public_key = RSA.importKey(pem_key)
+                 ^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\NanCunChild\anaconda3\envs\xdnet_helper\Lib\site-packages\Crypto\PublicKey\RSA.py", line 836, in import_key
+    (der, marker, enc_flag) = PEM.decode(tostr(extern_key), passphrase)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\NanCunChild\anaconda3\envs\xdnet_helper\Lib\site-packages\Crypto\IO\PEM.py", line 181, in decode
+    data = a2b_base64(''.join(lines[1:-1]))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+binascii.Error: Incorrect padding
+2025-04-25 00:31:44,426 - ERROR - zfw_apis - 用户 22009100795 登录失败，最终原因: 登录内部错误: Incorrect padding
+2025-04-25 00:32:03,322 - INFO - zfw_apis - 尝试登录用户 22009100795 - 第 1 次
+2025-04-25 00:32:32,615 - INFO - zfw_apis - 验证码识别尝试结果: ['8q10', '8q10', '8q10', '8q10', '8q10'], 最终选择: 8q10
+2025-04-25 00:32:35,487 - ERROR - zfw_apis - 密码加密失败: Incorrect padding
+2025-04-25 00:32:41,635 - ERROR - zfw_apis - 登录过程发生内部错误 (22009100795): Incorrect padding
+Traceback (most recent call last):
+  File "D:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 215, in attempt_login
+    encrypted_password = self.encrypt_password(password, public_key)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 87, in encrypt_password
+    public_key = RSA.importKey(pem_key)
+                 ^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\NanCunChild\anaconda3\envs\xdnet_helper\Lib\site-packages\Crypto\PublicKey\RSA.py", line 836, in import_key
+    (der, marker, enc_flag) = PEM.decode(tostr(extern_key), passphrase)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\NanCunChild\anaconda3\envs\xdnet_helper\Lib\site-packages\Crypto\IO\PEM.py", line 181, in decode
+    data = a2b_base64(''.join(lines[1:-1]))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+binascii.Error: Incorrect padding
+2025-04-25 00:32:48,129 - ERROR - zfw_apis - 用户 22009100795 登录失败，最终原因: 登录内部错误: Incorrect padding
+2025-04-25 00:33:09,200 - INFO - main - 程序启动。
+2025-04-25 00:33:20,393 - INFO - zfw_apis - 尝试登录用户 22009100795 - 第 1 次
+2025-04-25 00:33:20,731 - INFO - zfw_apis - 验证码识别尝试结果: ['7063', '7063', '7063', '7063', '7063'], 最终选择: 7063
+2025-04-25 00:33:20,747 - ERROR - zfw_apis - 密码加密失败: Incorrect padding
+2025-04-25 00:33:20,747 - ERROR - zfw_apis - 登录过程发生内部错误 (22009100795): Incorrect padding
+Traceback (most recent call last):
+  File "d:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 215, in attempt_login
+    encrypted_password = self.encrypt_password(password, public_key)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 87, in encrypt_password
+    public_key = RSA.importKey(pem_key)
+                 ^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\NanCunChild\anaconda3\envs\xdnet_helper\Lib\site-packages\Crypto\PublicKey\RSA.py", line 836, in import_key
+    (der, marker, enc_flag) = PEM.decode(tostr(extern_key), passphrase)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\NanCunChild\anaconda3\envs\xdnet_helper\Lib\site-packages\Crypto\IO\PEM.py", line 181, in decode
+    data = a2b_base64(''.join(lines[1:-1]))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+binascii.Error: Incorrect padding
+2025-04-25 00:33:20,751 - ERROR - zfw_apis - 用户 22009100795 登录失败，最终原因: 登录内部错误: Incorrect padding
+2025-04-25 00:33:26,412 - INFO - zfw_apis - 尝试登录用户 22009100795 - 第 1 次
+2025-04-25 00:33:26,753 - INFO - zfw_apis - 验证码识别尝试结果: ['7525', '7525', '7525', '7525', '7525'], 最终选择: 7525
+2025-04-25 00:33:26,753 - ERROR - zfw_apis - 密码加密失败: Incorrect padding
+2025-04-25 00:33:26,754 - ERROR - zfw_apis - 登录过程发生内部错误 (22009100795): Incorrect padding
+Traceback (most recent call last):
+  File "d:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 215, in attempt_login
+    encrypted_password = self.encrypt_password(password, public_key)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 87, in encrypt_password
+    public_key = RSA.importKey(pem_key)
+                 ^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\NanCunChild\anaconda3\envs\xdnet_helper\Lib\site-packages\Crypto\PublicKey\RSA.py", line 836, in import_key
+    (der, marker, enc_flag) = PEM.decode(tostr(extern_key), passphrase)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\NanCunChild\anaconda3\envs\xdnet_helper\Lib\site-packages\Crypto\IO\PEM.py", line 181, in decode
+    data = a2b_base64(''.join(lines[1:-1]))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+binascii.Error: Incorrect padding
+2025-04-25 00:33:26,755 - ERROR - zfw_apis - 用户 22009100795 登录失败，最终原因: 登录内部错误: Incorrect padding
+2025-04-25 00:34:20,568 - INFO - main - 程序启动。
+2025-04-25 00:34:31,121 - INFO - zfw_apis - 尝试登录用户 22009100795 - 第 1 次
+2025-04-25 00:34:31,408 - ERROR - zfw_apis - 获取验证码图片时发生错误: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:34:31,408 - ERROR - zfw_apis - 登录过程发生内部错误 (22009100795): 'builtin_function_or_method' object has no attribute 'time'
+Traceback (most recent call last):
+  File "d:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 209, in attempt_login
+    captcha_image_data = self.get_captcha_image(session)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 159, in get_captcha_image
+    captcha_url = f'{self.base_url}site/captcha?refresh=1&_={int(sleep.time() * 1000)}'
+                                                                 ^^^^^^^^^^
+AttributeError: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:34:31,410 - ERROR - zfw_apis - 用户 22009100795 登录失败，最终原因: 登录内部错误: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:34:34,986 - INFO - zfw_apis - 尝试登录用户 22009100795 - 第 1 次
+2025-04-25 00:34:35,282 - ERROR - zfw_apis - 获取验证码图片时发生错误: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:34:35,282 - ERROR - zfw_apis - 登录过程发生内部错误 (22009100795): 'builtin_function_or_method' object has no attribute 'time'
+Traceback (most recent call last):
+  File "d:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 209, in attempt_login
+    captcha_image_data = self.get_captcha_image(session)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 159, in get_captcha_image
+    captcha_url = f'{self.base_url}site/captcha?refresh=1&_={int(sleep.time() * 1000)}'
+                                                                 ^^^^^^^^^^
+AttributeError: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:34:35,283 - ERROR - zfw_apis - 用户 22009100795 登录失败，最终原因: 登录内部错误: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:36:03,293 - INFO - main - 程序启动。
+2025-04-25 00:36:13,228 - INFO - zfw_apis - 尝试登录用户 22009100795 - 第 1 次
+2025-04-25 00:36:14,136 - ERROR - zfw_apis - 获取验证码图片时发生错误: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:36:14,136 - ERROR - zfw_apis - 登录过程发生内部错误 (22009100795): 'builtin_function_or_method' object has no attribute 'time'
+Traceback (most recent call last):
+  File "D:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 209, in attempt_login
+    captcha_image_data = self.get_captcha_image(session)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\EsuTemp\xdu_network_resolver\zfw_apis.py", line 159, in get_captcha_image
+    captcha_url = f'{self.base_url}site/captcha?refresh=1&_={int(sleep.time() * 1000)}'
+                                                                 ^^^^^^^^^^
+AttributeError: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:36:14,137 - ERROR - zfw_apis - 用户 22009100795 登录失败，最终原因: 登录内部错误: 'builtin_function_or_method' object has no attribute 'time'
+2025-04-25 00:36:25,624 - INFO - network_utils - 尝试在浏览器中打开 URL: http://10.255.44.33
+2025-04-25 00:36:25,941 - INFO - network_utils - 成功调用 webbrowser.open()
