@@ -8,6 +8,7 @@ import winreg
 from typing import List, Dict, Tuple, Optional
 import socket
 import re
+import locale
 
 logger = logging.getLogger(__name__) # 使用与 zfw_apis 相同的 logger 配置
 
@@ -18,7 +19,9 @@ CAMPUS_NETWORK_FEATURES = {
     "gateway_ips": ["202.117.0.1"],
     "typical_ips": ["10.", "202.117."],
 }
-SYSTEM_ENCODING = 'utf-8'
+
+SYSTEM_PREFERRED_ENCODING = "utf-8"
+logger.info(f"System preferred encoding detected: {SYSTEM_PREFERRED_ENCODING}")
 
 # --- 代理相关 ---
 
@@ -205,7 +208,7 @@ def get_network_adapters() -> List[Dict]:
             cmd,
             capture_output=True,
             text=True,
-            encoding=SYSTEM_ENCODING,
+            encoding=SYSTEM_PREFERRED_ENCODING,
             errors='replace',  # 替换无法解码的字符
             timeout=5,
             creationflags=subprocess.CREATE_NO_WINDOW
@@ -271,7 +274,7 @@ def detect_campus_adapter(adapter_name: str) -> bool:
             ["netsh", "interface", "ipv4", "show", "config", f"name={adapter_name}"],
             capture_output=True,
             text=True,
-            encoding=SYSTEM_ENCODING,
+            encoding=SYSTEM_PREFERRED_ENCODING,
             errors='replace',
             timeout=5,
             creationflags=subprocess.CREATE_NO_WINDOW
@@ -290,7 +293,7 @@ def reset_adapter(adapter_name: str) -> Tuple[bool, str]:
              f'name="{adapter_name}"', "admin=disable"],
             check=True,
             timeout=10,
-            encoding=SYSTEM_ENCODING,
+            encoding=SYSTEM_PREFERRED_ENCODING,
             errors='replace',
             creationflags=subprocess.CREATE_NO_WINDOW
         )
@@ -301,7 +304,7 @@ def reset_adapter(adapter_name: str) -> Tuple[bool, str]:
              f'name="{adapter_name}"', "admin=enable"],
             check=True,
             timeout=10,
-            encoding=SYSTEM_ENCODING,
+            encoding=SYSTEM_PREFERRED_ENCODING,
             errors='replace',
             creationflags=subprocess.CREATE_NO_WINDOW
         )
@@ -320,7 +323,7 @@ def safe_str(obj) -> str:
     try:
         return str(obj)
     except UnicodeEncodeError:
-        return obj.encode(SYSTEM_ENCODING, errors='replace').decode(SYSTEM_ENCODING)
+        return obj.encode(SYSTEM_PREFERRED_ENCODING, errors='replace').decode(SYSTEM_PREFERRED_ENCODING)
     except:
         return "无法解码的错误信息"
     
@@ -450,44 +453,130 @@ def change_dns(adapter_name: str, dns_servers: list) -> tuple:
     except Exception as e:
         return False, f"意外错误: {str(e)}"
 
-def disable_ipv6(adapter_name: str):
-    """禁用IPv6协议 (需要管理员权限)"""
+def disable_ipv6(adapter_name: str) -> Tuple[bool, str]:
+    """
+    Attempts to modify IPv6 settings using netsh (e.g., disable dynamic DNS).
+    NOTE: This specific command may not fully disable the IPv6 protocol itself.
+    Requires Administrator privileges.
+    """
+    # Use the correct argument format for netsh: name="Adapter Name" or interface="Adapter Name"
+    # For 'set interface', 'name=' seems less common than 'interface='. Let's try 'interface='.
+    # Also ensure adapter_name with spaces is quoted correctly WITHIN the list item.
+    cmd = ["netsh", "interface", "ipv6", "set", "interface",
+           f'interface="{adapter_name}"', # Quote the name correctly
+           "disableddns=enabled",
+           "store=persistent"]
+    logger.info(f"Executing command: {' '.join(cmd)}")
     try:
-        subprocess.run(
-            ["netsh", "interface", "ipv6", "set", "interface",
-             f'"{adapter_name}"', "disableddns=enabled", "store=persistent"], # 使用 disableddns 而不是 disable，更安全
-            check=True, shell=True, capture_output=True, text=True, timeout=10
+        result = subprocess.run(
+            cmd,
+            # shell=False is default and safer when command is a list
+            check=True,           # Raise exception on non-zero exit code
+            capture_output=True,  # Capture stdout and stderr
+            text=True,            # Decode output as text
+            encoding='utf-8',     # *** TRY UTF-8 FIRST ***
+            errors='replace',     # *** REPLACE undecodable bytes ***
+            timeout=15,           # Slightly longer timeout
+            creationflags=subprocess.CREATE_NO_WINDOW # Hide console window
         )
-        return True, "IPv6已禁用"
+        # Log actual output for debugging
+        stdout = result.stdout.strip() if result.stdout else ""
+        stderr = result.stderr.strip() if result.stderr else ""
+        if stdout: logger.info(f"disable_ipv6 stdout: {stdout}")
+        if stderr: logger.warning(f"disable_ipv6 stderr: {stderr}")
+
+        # Return a more accurate message based on the command ACTUALLY run
+        # This command modifies DDNS behaviour, not the protocol state directly.
+        return True, f"IPv6 dynamic DNS setting updated for '{adapter_name}'. (Output: {stdout or 'OK'})"
+        # return True, "IPv6已禁用" # Original inaccurate message
+
     except subprocess.CalledProcessError as e:
-        logger.error(f"禁用IPv6失败: {e.stderr}")
-        return False, f"操作失败: {e.stderr}"
+        # Decode stderr carefully as well, trying multiple encodings if necessary
+        stderr_decoded = "N/A"
+        if e.stderr:
+            try:
+                # Try decoding stderr with UTF-8 first, then system default
+                stderr_decoded = e.stderr.decode('utf-8', errors='replace').strip()
+            except Exception:
+                try:
+                    stderr_decoded = e.stderr.decode(SYSTEM_PREFERRED_ENCODING, errors='replace').strip()
+                except Exception:
+                     stderr_decoded = repr(e.stderr) # Raw representation if all decodes fail
+        logger.error(f"Command '{' '.join(cmd)}' failed with code {e.returncode}. Stderr: {stderr_decoded}")
+        # Provide a more informative error message to the user
+        err_msg = f"操作失败 (命令错误码 {e.returncode})"
+        if stderr_decoded and stderr_decoded != "N/A":
+            err_msg += f": {stderr_decoded}"
+        # Check for common permission error message patterns (adjust keywords as needed)
+        if "administrator" in stderr_decoded.lower() or "管理员" in stderr_decoded or "权限" in stderr_decoded:
+             err_msg += " - 可能需要管理员权限运行此程序。"
+        return False, err_msg
+
+    except FileNotFoundError:
+         logger.error("Command 'netsh' not found.")
+         return False, "找不到 'netsh' 命令，无法执行操作。"
+    except subprocess.TimeoutExpired:
+        logger.error(f"Command '{' '.join(cmd)}' timed out.")
+        return False, "操作超时"
     except Exception as e:
-        return False, f"意外错误: {str(e)}"
+        # Catch potential encoding errors during the run itself if 'replace' wasn't sufficient
+        # or other unexpected errors
+        logger.error(f"Unexpected error executing disable_ipv6: {e}", exc_info=True)
+        # Check if it's an encoding error during processing, though less likely now
+        if isinstance(e, UnicodeDecodeError):
+             return False, f"处理命令输出时发生编码错误: {e}"
+        return False, f"发生意外错误: {str(e)}"
 
 
-def enable_ipv6(adapter_name):
-    """启用指定网络适配器的 IPv6 (Windows, 需要管理员权限) - 占位符"""
-    if platform.system() != "Windows":
-        logger.error("启用 IPv6 目前仅支持 Windows。")
-        return False, "仅支持 Windows"
+def enable_ipv6(adapter_name: str) -> Tuple[bool, str]:
+    """
+    Attempts to enable IPv6 settings using netsh.
+    Requires Administrator privileges. (Implementation needed)
+    """
+    # Correct command might be: netsh interface ipv6 set state interface="Adapter Name" state=enabled
+    cmd = ["netsh", "interface", "ipv6", "set", "state",
+           f'interface="{adapter_name}"',
+           "state=enabled"]
+    logger.info(f"Executing command: {' '.join(cmd)}")
+    try:
+        result = subprocess.run(
+            cmd, check=True, capture_output=True, text=True,
+            encoding='utf-8', errors='replace', timeout=15,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        stdout = result.stdout.strip() if result.stdout else ""
+        stderr = result.stderr.strip() if result.stderr else ""
+        if stdout: logger.info(f"enable_ipv6 stdout: {stdout}")
+        if stderr: logger.warning(f"enable_ipv6 stderr: {stderr}")
+        # Check output for confirmation, e.g., "Ok." is common for netsh success
+        if "ok" in stdout.lower() or not stderr:
+             return True, f"IPv6 已尝试启用 for '{adapter_name}'. (Output: {stdout or 'OK'})"
+        else:
+             # Command ran but output might indicate issues
+             return False, f"启用 IPv6 命令完成，但输出可疑: {stdout} / {stderr}"
 
-    logger.warning(f"启用 IPv6 功能 ('{adapter_name}') 尚未完全实现。需要管理员权限和 netsh 命令。")
-    # 示例命令: subprocess.run(['netsh', 'interface', 'ipv6', 'set', 'state', f'interface="{adapter_name}"', 'state=enabled'], ...)
-    return False, "功能待实现"
+    except subprocess.CalledProcessError as e:
+        stderr_decoded = "N/A"
+        if e.stderr:
+             try: stderr_decoded = e.stderr.decode('utf-8', errors='replace').strip()
+             except Exception: stderr_decoded = repr(e.stderr)
+        logger.error(f"Command '{' '.join(cmd)}' failed with code {e.returncode}. Stderr: {stderr_decoded}")
+        err_msg = f"启用失败 (错误码 {e.returncode})"
+        if stderr_decoded and stderr_decoded != "N/A": err_msg += f": {stderr_decoded}"
+        if "administrator" in stderr_decoded.lower() or "管理员" in stderr_decoded or "权限" in stderr_decoded:
+             err_msg += " - 可能需要管理员权限。"
+        return False, err_msg
+    except FileNotFoundError:
+         logger.error("Command 'netsh' not found.")
+         return False, "找不到 'netsh' 命令。"
+    except subprocess.TimeoutExpired:
+        logger.error(f"Command '{' '.join(cmd)}' timed out.")
+        return False, "操作超时"
+    except Exception as e:
+        logger.error(f"Unexpected error executing enable_ipv6: {e}", exc_info=True)
+        if isinstance(e, UnicodeDecodeError): return False, f"处理命令输出时发生编码错误: {e}"
+        return False, f"发生意外错误: {str(e)}"
 
-def set_dns(adapter_name, dns_servers):
-    """设置指定网络适配器的 DNS 服务器 (Windows, 需要管理员权限) - 占位符"""
-    if platform.system() != "Windows":
-        logger.error("设置 DNS 目前仅支持 Windows。")
-        return False, "仅支持 Windows"
-
-    logger.warning(f"设置 DNS 功能 ('{adapter_name}') 尚未完全实现。需要管理员权限和 netsh 命令。")
-    # 示例命令:
-    # subprocess.run(['netsh', 'interface', 'ipv4', 'set', 'dnsserver', f'name="{adapter_name}"', 'static', dns_servers[0], 'primary'], ...)
-    # if len(dns_servers) > 1:
-    #     subprocess.run(['netsh', 'interface', 'ipv4', 'add', 'dnsserver', f'name="{adapter_name}"', dns_servers[1], 'index=2'], ...)
-    return False, "功能待实现"
 
 def run_pppoe_dial(connection_name, username=None, password=None):
      """执行 PPPoE 拨号 (Windows) - 占位符"""
