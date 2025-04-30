@@ -7,6 +7,7 @@
 import asyncio
 import ctypes
 import os
+import socket
 import sys
 import getpass
 import logging
@@ -22,6 +23,8 @@ from datetime import datetime
 from typing import Dict, Tuple, List, Optional, Any, Union
 from dataclasses import dataclass, field
 from concurrent.futures import Future
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.exceptions import InvalidTag
 
 # 确保能找到同目录下的模块 (如果它们确实在同目录)
 # 更好的方式是使用包结构或设置 PYTHONPATH
@@ -38,6 +41,14 @@ except ImportError as e:
     print("请确保 xidian_zfw.py, network_utils.py, security.py 文件与 main.py 在同一目录或已正确安装。")
     sys.exit(1)
 # --- --------------------------------- ---
+
+# 服务特权使用
+SERVICE_PSK = b'YourSuperSecretPreSharedKey12345' # 与服务端一致
+SERVICE_HOST = '127.0.0.1' # 连接本地服务
+SERVICE_PREDEFINED_PORT = 9191
+# SERVICE_ARBITRARY_PORT = 9192 # 客户端通常不应直接使用此端口
+SERVICE_TIMEOUT = 10 # 连接和接收超时 (秒)
+SERVICE_BUFFER_SIZE = 4096
 
 # 配置常量
 CONFIG_DIR = Path.home() / ".xidian_network"
@@ -335,10 +346,27 @@ class NetworkManager:
                 dns_input = input("请输入DNS服务器 (空格分隔, 如 114.114.114.114 8.8.8.8), 留空恢复DHCP: ")
                 dns_servers = dns_input.split()
                 task_description = "修改DNS服务器"
-                coro = AsyncManager.run_sync_in_executor(
-                    network_utils.change_dns, adapter_name_for_op, dns_servers
-                )
-                future = AsyncManager.submit_async_task(self.state, coro)
+                # === 服务优先 ===
+                service_args = {'name': adapter_name_for_op, 'dns_servers': dns_servers}
+                # 直接使用类名调用静态方法
+                service_response = ServiceConnect.try_service_command("change_dns", service_args)
+                
+                if service_response is not None:
+                    # 处理服务返回的结果
+                    service_used = True
+                    success = service_response.get("success", False)
+                    msg = service_response.get("message", "服务未提供详细信息")
+                    print(f"\n通过服务 {task_description} 完成:")
+                    print(f"结果: {'成功' if success else '失败'}")
+                    print(f"信息: {msg}")
+                    operation_success = success
+                else:
+                    # === 回退逻辑 (服务调用失败) ===
+                    logger.info("服务调用失败，回退到直接执行...")
+                    coro = AsyncManager.run_sync_in_executor(
+                        network_utils.change_dns, adapter_name_for_op, dns_servers
+                    )
+                    future = AsyncManager.submit_async_task(self.state, coro)
 
             elif choice == "2":
                 adapter_name_for_op = selected_adapter.get('name')
@@ -461,6 +489,99 @@ class NetworkManager:
                 # Pause after any async operation completes or fails
                 input("\n按Enter继续...")
 
+class ServiceConnect:
+    @staticmethod
+    def encrypt_message_client(key: bytes, plaintext: bytes) -> Optional[bytes]:
+        if len(key) not in [16, 24, 32]: return None
+        try:
+            aesgcm = AESGCM(key)
+            nonce = os.urandom(12)
+            ciphertext = aesgcm.encrypt(nonce, plaintext, None)
+            return nonce + ciphertext
+        except Exception: return None
+
+    @staticmethod
+    def decrypt_message_client(key: bytes, encrypted_data: bytes) -> Optional[bytes]:
+        if len(key) not in [16, 24, 32]: return None
+        if len(encrypted_data) < 12 + 16: return None
+        try:
+            nonce = encrypted_data[:12]
+            ciphertext_with_tag = encrypted_data[12:]
+            aesgcm = AESGCM(key)
+            plaintext = aesgcm.decrypt(nonce, ciphertext_with_tag, None)
+            return plaintext
+        except (InvalidTag, Exception): return None
+        
+    @staticmethod
+    def try_service_command(command: str, args: dict = None) -> Optional[dict]:
+        """
+        尝试通过连接本地服务来执行预定义命令。
+        返回: 服务的响应字典 (包含 success, message 等)，或 None 表示通信失败。
+        """
+        request_data = {"command": command}
+        if args is not None:
+            request_data["args"] = args
+
+        logger.info(f"尝试通过服务执行命令: {command}, 参数: {args}")
+        client_socket = None
+        try:
+            # 1. 准备加密请求
+            request_bytes = json.dumps(request_data).encode('utf-8')
+            encrypted_request = ServiceConnect.encrypt_message_client(SERVICE_PSK, request_bytes)
+            if not encrypted_request:
+                logger.error("客户端加密请求失败。")
+                return None
+
+            # 2. 连接服务
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_socket.settimeout(SERVICE_TIMEOUT)
+            client_socket.connect((SERVICE_HOST, SERVICE_PREDEFINED_PORT))
+            logger.debug(f"已连接到服务 {SERVICE_HOST}:{SERVICE_PREDEFINED_PORT}")
+
+            # 3. 发送请求
+            client_socket.sendall(encrypted_request)
+            logger.debug("已发送加密请求到服务。")
+
+            # 4. 接收响应
+            encrypted_response = client_socket.recv(SERVICE_BUFFER_SIZE)
+            if not encrypted_response:
+                logger.warning("未收到服务响应。")
+                return None
+            logger.debug("已收到服务响应。")
+
+            # 5. 解密响应
+            decrypted_response_bytes = ServiceConnect.decrypt_message_client(SERVICE_PSK, encrypted_response)
+            if not decrypted_response_bytes:
+                logger.error("客户端解密服务响应失败 (可能密钥不匹配或数据损坏)。")
+                return None
+
+            # 6. 解析响应
+            try:
+                response_data = json.loads(decrypted_response_bytes.decode('utf-8'))
+                logger.info(f"服务响应: {response_data}")
+                # 确保返回的是字典
+                return response_data if isinstance(response_data, dict) else None
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                logger.error(f"无法解析服务的 JSON 响应: {e}")
+                return None
+
+        except socket.timeout:
+            logger.warning(f"连接服务或接收响应超时 ({SERVICE_TIMEOUT}秒)。服务可能未运行或无响应。")
+            return None
+        except ConnectionRefusedError:
+            logger.warning(f"连接服务 {SERVICE_HOST}:{SERVICE_PREDEFINED_PORT} 被拒绝。服务未运行或被防火墙阻止?")
+            return None
+        except Exception as e:
+            logger.error(f"与服务通信时发生意外错误: {e}", exc_info=True)
+            return None
+        finally:
+            if client_socket:
+                try:
+                    client_socket.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+                client_socket.close()
+                logger.debug("与服务的连接已关闭。")
 
 class AppController:
     """应用控制器，处理主要业务逻辑"""
